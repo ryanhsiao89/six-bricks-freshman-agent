@@ -12,9 +12,6 @@ st.set_page_config(
 APP_TITLE = "六色新生小夥伴"
 MODEL_NAME = "gemini-2.5-flash-lite"
 
-st.image("brick_icon.png", width=120)
-st.title(APP_TITLE)
-
 
 def parse_api_keys(raw_text: str):
     if not raw_text:
@@ -31,6 +28,7 @@ def test_gemini_api(api_key: str):
     return response.text.strip()
 
 
+st.image("brick_icon.png", width=120)
 st.title(APP_TITLE)
 
 st.markdown(
@@ -82,10 +80,12 @@ if st.button("測試我的 API Key", type="primary", disabled=not privacy_ok or 
             try:
                 with st.spinner(f"正在測試第 {i} 組 API Key..."):
                     result = test_gemini_api(key)
+
                 st.success("API Key 測試成功。")
                 st.chat_message("assistant").write(result)
                 success = True
                 break
+
             except Exception as e:
                 last_error = e
                 st.warning(f"第 {i} 組 API Key 測試失敗，嘗試下一組。")
