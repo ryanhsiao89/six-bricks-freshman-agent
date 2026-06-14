@@ -48,10 +48,9 @@ nickname = st.text_input(
     placeholder="例如：A001、小磚友、NuuStudent01",
 )
 
-api_key_text = st.text_area(
-    "請貼上你的 Gemini API Key。若有多組，請用半形逗號或換行分隔。",
+api_key_text = st.text_input(
+    "請貼上你的 Gemini API Key。若有多組，請用半形逗號分隔。",
     placeholder="AIzaSyxxxxxx, AIzaSyyyyyy",
-    height=100,
     type="password",
 )
 
