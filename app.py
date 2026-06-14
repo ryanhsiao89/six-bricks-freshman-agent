@@ -40,17 +40,107 @@ if "active_api_key" not in st.session_state:
 if "active_key_index" not in st.session_state:
     st.session_state.active_key_index = None
 
+if "api_keys_list" not in st.session_state:
+    st.session_state.api_keys_list = []
+
 if "last_test_message" not in st.session_state:
     st.session_state.last_test_message = ""
 
+if "activity_feedback" not in st.session_state:
+    st.session_state.activity_feedback = {}
+
+if "activity_answers" not in st.session_state:
+    st.session_state.activity_answers = {}
+
 
 # =========================================================
-# 3. 工具函式
+# 3. 活動設定：六色積木 × VIA 六大美德
+# =========================================================
+ACTIVITIES = {
+    "tower": {
+        "label": "🧱 合作高塔",
+        "title": "合作高塔：勇氣 × 正義",
+        "emoji": "🧱",
+        "virtues": "勇氣、正義",
+        "strengths": "勇敢、堅毅、正直、生命力、公民精神、公平、領導力",
+        "description": "透過合作疊高塔，觀察自己在團隊中的角色、行動力、挫折反應與合作方式。",
+        "questions": [
+            "剛剛在合作高塔活動中，你在團隊裡比較像哪一種角色？例如：快速行動者、穩定支持者、規則提醒者、創意發想者、團隊協調者。",
+            "當高塔倒下或遇到困難時，你的第一個反應是什麼？你後來怎麼調整？",
+            "這個活動中，你覺得自己展現了哪一種勇氣或團隊合作的優勢？",
+        ],
+    },
+    "back_to_back": {
+        "label": "👂 背對背溝通",
+        "title": "背對背溝通：人道 × 智慧與知識",
+        "emoji": "👂",
+        "virtues": "人道、智慧與知識",
+        "strengths": "愛、仁慈、社交智慧、創造力、好奇心、開明思想、喜愛學習、觀點",
+        "description": "透過背對背建構，體驗表達、聆聽、提問、同理與形成共識的重要性。",
+        "questions": [
+            "剛剛活動中，你覺得「說清楚」比較難，還是「聽懂別人」比較難？為什麼？",
+            "當訊息不清楚時，你有沒有嘗試確認、提問、理解對方的角度或感受？請簡單描述。",
+            "如果把這個經驗放到大學交朋友、宿舍生活或分組報告，你想提醒自己什麼？",
+        ],
+    },
+    "listen_build": {
+        "label": "📚 聆聽與建構",
+        "title": "聆聽與建構：智慧與知識 × 節制",
+        "emoji": "📚",
+        "virtues": "智慧與知識、節制",
+        "strengths": "創造力、好奇心、開明思想、喜愛學習、觀點、寬恕、謙遜、謹慎、自制力",
+        "description": "透過聆聽指令與建構任務，連結大學課業、學習策略、壓力調節與自我修正。",
+        "questions": [
+            "當指令不清楚、任務不確定時，你通常會怎麼做？例如：先嘗試、問清楚、觀察別人、等待更多資訊、容易焦慮。",
+            "面對大學課業，你目前最需要哪一種支持？例如：時間管理、同伴討論、問問題的勇氣、整理筆記、先完成基本版本。",
+            "這週你可以做哪一個小行動，幫助自己更適應大學學習？",
+        ],
+    },
+    "domino": {
+        "label": "🎯 六色積木骨牌",
+        "title": "六色積木骨牌：節制 × 正義 × 超越",
+        "emoji": "🎯",
+        "virtues": "節制、正義、超越",
+        "strengths": "謹慎、自制力、謙遜、寬恕、公民精神、公平、領導力、希望、感恩、欣賞美好卓越、幽默、靈修性",
+        "description": "透過六色積木骨牌活動，觀察自己在規劃、耐心、細心、合作與連鎖影響中的表現，也反思失敗後如何重新調整與再開始。",
+        "questions": [
+            "在六色積木骨牌活動中，你比較投入的是哪一部分？例如：規劃路線、擺放細節、協助同伴、檢查穩定性、觀察整體效果。",
+            "當骨牌中途倒掉、失敗或不如預期時，你的第一個反應是什麼？你後來怎麼面對或調整？",
+            "這個活動讓你看見自己哪一種優勢？它又可以怎麼連結到你未來的大學生活？",
+        ],
+    },
+}
+
+ACTIVITY_OPTIONS = list(ACTIVITIES.keys())
+
+
+# =========================================================
+# 4. 工具函式
 # =========================================================
 def parse_api_keys(raw_text: str):
     if not raw_text:
         return []
     return [k.strip() for k in re.split(r"[\n,]+", raw_text) if k.strip()]
+
+
+def extract_response_text(response):
+    try:
+        text = response.text
+        if text and text.strip():
+            return text.strip()
+    except Exception:
+        pass
+
+    try:
+        candidates = getattr(response, "candidates", []) or []
+        parts = candidates[0].content.parts
+        text = "\n".join(getattr(p, "text", "") for p in parts if getattr(p, "text", ""))
+        if text.strip():
+            return text.strip()
+    except Exception:
+        pass
+
+    return "我有收到你的反思，但這次模型沒有回傳完整文字。可以再試一次，或先用紙本記下你的想法。"
 
 
 def test_gemini_api(api_key: str):
@@ -60,11 +150,111 @@ def test_gemini_api(api_key: str):
         "請用自然的繁體中文，用一句活潑溫暖的話，歡迎大一新生參加六色積木 AI 工作坊。"
         "請使用「大一新生」這個詞，不要改寫成其他稱呼。"
     )
-    return response.text.strip()
+    return extract_response_text(response)
+
+
+def build_activity_prompt(activity_key: str, nickname: str, pre_score: int, selected_topic: str, answers: list[str]):
+    activity = ACTIVITIES[activity_key]
+
+    answer_text = "\n".join(
+        [f"Q{i + 1}: {activity['questions'][i]}\nA{i + 1}: {answers[i].strip()}" for i in range(len(answers))]
+    )
+
+    prompt = f"""
+你是「六色新生小夥伴」，一位溫暖、活潑、穩定的工作坊反思陪伴者。
+
+你的任務：
+根據學生在六色積木活動後的反思，協助學生整理：
+1. 他在活動中展現的 1 到 2 個 VIA 性格優勢；
+2. 這些優勢如何連結到大學生活適應；
+3. 一個五分鐘內可以完成的新生小行動。
+
+重要限制：
+1. 請使用自然的繁體中文。
+2. 回覆長度請控制在 120 到 180 字。
+3. 語氣溫暖、可愛、鼓勵，但不要幼稚。
+4. 不要診斷、不要治療、不要說教。
+5. 不要要求學生揭露真實姓名、學號、同學姓名或私人個資。
+6. 若內容出現明顯自傷、傷人、嚴重絕望或安全危機，請停止一般回饋，鼓勵學生立即找現場老師、校內諮商輔導中心、可信任的人或緊急服務協助。
+7. 請不要自稱心理師或治療師。
+
+學生資訊：
+暱稱或代碼：{nickname}
+新生適應電量：{pre_score}/10
+學生想先探索的主題：{selected_topic}
+
+本次活動：
+活動名稱：{activity['title']}
+對應 VIA 美德：{activity['virtues']}
+可能相關的 24 項優勢：{activity['strengths']}
+活動說明：{activity['description']}
+
+學生反思：
+{answer_text}
+
+請用以下格式回覆：
+
+🧱 我看見你的優勢：
+（用 1 到 2 句具體指出學生展現的 VIA 優勢）
+
+🌱 可以帶回大學生活的是：
+（把活動經驗連結到人際、學業、生涯或自我照顧）
+
+✨ 這週的一小步：
+（提供一個五分鐘內可以完成的小行動）
+""".strip()
+
+    return prompt
+
+
+def generate_with_key(api_key: str, prompt: str):
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel(MODEL_NAME)
+    response = model.generate_content(prompt)
+    return extract_response_text(response)
+
+
+def generate_activity_feedback(activity_key: str, answers: list[str]):
+    prompt = build_activity_prompt(
+        activity_key=activity_key,
+        nickname=st.session_state.nickname,
+        pre_score=st.session_state.pre_score,
+        selected_topic=st.session_state.selected_topic,
+        answers=answers,
+    )
+
+    keys_to_try = []
+
+    if st.session_state.active_api_key:
+        keys_to_try.append(st.session_state.active_api_key)
+
+    for key in st.session_state.api_keys_list:
+        if key not in keys_to_try:
+            keys_to_try.append(key)
+
+    if not keys_to_try:
+        raise RuntimeError("目前沒有可用的 API Key。請回到上方貼上 Gemini API Key 並完成連線測試。")
+
+    last_error = None
+
+    for idx, key in enumerate(keys_to_try, start=1):
+        try:
+            return generate_with_key(key, prompt)
+        except Exception as e:
+            last_error = e
+            continue
+
+    raise RuntimeError(f"目前所有 API Key 都無法產生回饋。最後錯誤：{last_error}")
+
+
+def enough_answers(answers: list[str]):
+    non_empty = [a.strip() for a in answers if a.strip()]
+    total_chars = sum(len(a) for a in non_empty)
+    return len(non_empty) >= 2 and total_chars >= 20
 
 
 # =========================================================
-# 4. 自訂樣式
+# 5. 自訂樣式
 # =========================================================
 st.markdown(
     """
@@ -74,7 +264,7 @@ st.markdown(
     }
 
     .main .block-container {
-        max-width: 760px;
+        max-width: 780px;
         padding-top: 2rem;
         padding-bottom: 3rem;
     }
@@ -160,6 +350,7 @@ st.markdown(
         border-radius: 20px;
         padding: 1rem 1.1rem;
         margin-top: 1rem;
+        margin-bottom: 1rem;
         box-shadow: 0 4px 14px rgba(0,0,0,0.04);
     }
 
@@ -186,7 +377,47 @@ st.markdown(
         margin-top: 0.3rem;
     }
 
+    .activity-card {
+        background: linear-gradient(135deg, #FFFFFF 0%, #F8FBFF 100%);
+        border: 1px solid #E6EEF8;
+        border-radius: 22px;
+        padding: 1rem 1.1rem;
+        margin-top: 1rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.04);
+    }
+
+    .activity-title {
+        color: #2E3141;
+        font-size: 1.25rem;
+        font-weight: 850;
+        margin-bottom: 0.45rem;
+    }
+
+    .activity-meta {
+        color: #5B6075;
+        font-size: 0.96rem;
+        line-height: 1.75;
+    }
+
+    .feedback-card {
+        background: linear-gradient(135deg, #FFF7FB 0%, #F1FAFF 100%);
+        border: 1px solid #F0D9EA;
+        border-radius: 22px;
+        padding: 1.1rem 1.2rem;
+        margin-top: 1rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.05);
+        color: #3B3F55;
+        line-height: 1.85;
+        font-size: 1rem;
+    }
+
     .stTextInput > div > div > input {
+        border-radius: 14px;
+    }
+
+    .stTextArea textarea {
         border-radius: 14px;
     }
 
@@ -221,18 +452,18 @@ st.markdown(
 
 
 # =========================================================
-# 5. 頁首
+# 6. 頁首
 # =========================================================
 st.image("brick_icon.png", width=115)
 
 st.markdown(
     """
     <div class="hero-card">
-        <div class="hero-badge">🧱 測試版 v0.3</div>
+        <div class="hero-badge">🧱 測試版 v0.4.1</div>
         <div class="hero-title">六色新生小夥伴</div>
         <div class="hero-subtitle">
             歡迎來到你的 <b>六色積木 × AI 新生陪伴小站</b>！<br>
-            先確認 API Key 是否能順利連線，再進入大學生活電量前測。
+            先確認 API Key 是否能順利連線，再進入六色積木活動反思。
         </div>
     </div>
     """,
@@ -240,13 +471,13 @@ st.markdown(
 )
 
 st.info(
-    "這是工作坊測試版，目前主要功能是確認學生可以順利輸入 API Key，並進入新生適應電量前測。",
+    "這是工作坊測試版，目前已可完成 API Key 連線、新生適應電量前測，以及四個六色積木活動的 AI 反思。",
     icon="💡",
 )
 
 
 # =========================================================
-# 6. 說明卡
+# 7. 說明卡
 # =========================================================
 st.markdown('<div class="section-title">先看一下小提醒</div>', unsafe_allow_html=True)
 
@@ -282,7 +513,7 @@ with col2:
 
 
 # =========================================================
-# 7. API Key 測試區
+# 8. API Key 測試區
 # =========================================================
 st.markdown('<div class="section-title">第一步：開始連線小夥伴</div>', unsafe_allow_html=True)
 
@@ -337,6 +568,7 @@ if st.button("🧱 開始連線我的小夥伴", disabled=not privacy_ok or not 
                 st.session_state.nickname = nickname.strip()
                 st.session_state.active_api_key = key
                 st.session_state.active_key_index = i
+                st.session_state.api_keys_list = keys
                 st.session_state.last_test_message = result
 
                 st.balloons()
@@ -354,7 +586,7 @@ if st.button("🧱 開始連線我的小夥伴", disabled=not privacy_ok or not 
 
 
 # =========================================================
-# 8. API 成功後：新生適應電量前測
+# 9. API 成功後：新生適應電量前測
 # =========================================================
 if st.session_state.api_ready:
     st.divider()
@@ -381,13 +613,13 @@ if st.session_state.api_ready:
         value=int(st.session_state.pre_score),
     )
 
+    topic_options = ["👋 人際交往", "📚 學業挑戰", "🚀 生涯展望", "🌿 壓力與自我照顧"]
+
     st.session_state.selected_topic = st.radio(
         "你目前最想先探索哪一個主題？",
-        ["👋 人際交往", "📚 學業挑戰", "🚀 生涯展望", "🌿 壓力與自我照顧"],
-        index=["👋 人際交往", "📚 學業挑戰", "🚀 生涯展望", "🌿 壓力與自我照顧"].index(
-            st.session_state.selected_topic
-        )
-        if st.session_state.selected_topic in ["👋 人際交往", "📚 學業挑戰", "🚀 生涯展望", "🌿 壓力與自我照顧"]
+        topic_options,
+        index=topic_options.index(st.session_state.selected_topic)
+        if st.session_state.selected_topic in topic_options
         else 0,
     )
 
@@ -403,21 +635,101 @@ if st.session_state.api_ready:
                     目前的大學生活電量：<b>{st.session_state.pre_score} / 10</b><br>
                     想先探索的主題：
                     <span class="topic-pill">{st.session_state.selected_topic}</span><br><br>
-                    下一版會從這裡開始，帶你進入「合作高塔、背對背溝通、聆聽與建構、生涯金字塔」的活動反思。
+                    接下來請選擇剛剛完成、或現在想反思的活動，小夥伴會根據你的反思整理一段短回饋。
                 </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-        st.info(
-            "目前 v0.3 已完成 API Key 連線與新生電量前測。下一步可以加入四個六色積木活動的 AI 反思入口。",
-            icon="🛠️",
+
+# =========================================================
+# 10. v0.4：四個六色積木活動 AI 反思入口
+# =========================================================
+if st.session_state.api_ready and st.session_state.reflection_started:
+    st.divider()
+
+    st.markdown('<div class="section-title">第三步：選擇六色積木活動</div>', unsafe_allow_html=True)
+
+    selected_activity_key = st.radio(
+        "請選擇你剛剛完成、或現在想反思的活動：",
+        ACTIVITY_OPTIONS,
+        format_func=lambda key: f"{ACTIVITIES[key]['label']}｜{ACTIVITIES[key]['virtues']}",
+        horizontal=False,
+    )
+
+    selected_activity = ACTIVITIES[selected_activity_key]
+
+    st.markdown(
+        f"""
+        <div class="activity-card">
+            <div class="activity-title">{selected_activity['emoji']} {selected_activity['title']}</div>
+            <div class="activity-meta">
+                <b>對應 VIA 美德：</b>{selected_activity['virtues']}<br>
+                <b>可能相關優勢：</b>{selected_activity['strengths']}<br>
+                <b>活動說明：</b>{selected_activity['description']}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown('<div class="section-title">第四步：填寫 2–3 題活動反思</div>', unsafe_allow_html=True)
+
+    answers = []
+
+    for q_index, question in enumerate(selected_activity["questions"], start=1):
+        answer_key = f"{selected_activity_key}_q{q_index}"
+
+        answer = st.text_area(
+            f"Q{q_index}. {question}",
+            key=answer_key,
+            height=90,
+            placeholder="可以簡單寫 1–3 句，不需要寫很多。",
+        )
+        answers.append(answer)
+
+    st.session_state.activity_answers[selected_activity_key] = answers
+
+    st.markdown(
+        '<div class="small-tip">小提醒：至少填 2 題、合計約 20 字以上，AI 回饋會比較具體。</div>',
+        unsafe_allow_html=True,
+    )
+
+    if st.button(
+        f"✨ 請小夥伴整理我的「{selected_activity['label']}」反思",
+        use_container_width=True,
+    ):
+        if not enough_answers(answers):
+            st.warning("請至少填寫 2 題，並稍微多寫一點點，這樣小夥伴才能給你比較具體的回饋。", icon="📝")
+        else:
+            try:
+                with st.spinner("小夥伴正在整理你的優勢與下一小步..."):
+                    feedback = generate_activity_feedback(selected_activity_key, answers)
+
+                st.session_state.activity_feedback[selected_activity_key] = feedback
+                st.success("小夥伴整理完成！", icon="🌟")
+
+            except Exception as e:
+                st.error(f"這次產生回饋時遇到問題：{e}", icon="😥")
+
+    if selected_activity_key in st.session_state.activity_feedback:
+        st.markdown('<div class="section-title">小夥伴給你的短回饋</div>', unsafe_allow_html=True)
+
+        feedback_html = st.session_state.activity_feedback[selected_activity_key].replace("\n", "<br>")
+
+        st.markdown(
+            f"""
+            <div class="feedback-card">
+                {feedback_html}
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
 
 
 # =========================================================
-# 9. 無 API Key 備援版
+# 11. 無 API Key 備援版
 # =========================================================
 st.divider()
 
@@ -433,10 +745,17 @@ with st.expander("📝 我沒有 API Key，先使用固定反思題"):
 3. 面對學業挑戰時，我最需要哪一種支持？
 4. 我今天看見自己的一個優勢是什麼？
 5. 我這週願意完成的一個大學生活小行動是什麼？
+
+如果你正在做不同活動，也可以依照下面分類反思：
+
+- 合作高塔：我在團隊中扮演什麼角色？遇到倒塌時怎麼調整？
+- 背對背溝通：我比較擅長表達還是聆聽？我可以如何確認對方意思？
+- 聆聽與建構：面對不清楚的指令時，我會怎麼做？我需要什麼學習支持？
+- 六色積木骨牌：我在規劃、擺放、合作或重來的過程中展現了什麼？遇到失敗時我怎麼面對？
 """
     )
 
 st.markdown(
-    '<div class="footer-note">測試版 v0.3｜六色積木 × VIA 優勢 × 新生適應 AI Agent</div>',
+    '<div class="footer-note">測試版 v0.4.1｜六色積木 × VIA 優勢 × 新生適應 AI Agent</div>',
     unsafe_allow_html=True,
 )
