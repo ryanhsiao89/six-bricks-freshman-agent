@@ -5,12 +5,15 @@ import google.generativeai as genai
 
 st.set_page_config(
     page_title="六色新生小夥伴",
-    page_icon="🧱",
+    page_icon="brick_icon.png",
     layout="centered",
 )
 
-APP_TITLE = "🧱 六色新生小夥伴"
+APP_TITLE = "六色新生小夥伴"
 MODEL_NAME = "gemini-2.5-flash-lite"
+
+st.image("brick_icon.png", width=120)
+st.title(APP_TITLE)
 
 
 def parse_api_keys(raw_text: str):
