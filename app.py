@@ -13,7 +13,7 @@ st.set_page_config(
 )
 
 APP_TITLE = "六色新生小夥伴"
-MODEL_NAME = "gemini-2.5-flash-lite"
+MODEL_NAME = "gemini-3.5-flash-lite"
 
 
 # =========================================================
@@ -459,7 +459,7 @@ st.image("brick_icon.png", width=115)
 st.markdown(
     """
     <div class="hero-card">
-        <div class="hero-badge">🧱 測試版 v0.4.1</div>
+        <div class="hero-badge">🧱 測試版 v0.4.2</div>
         <div class="hero-title">六色新生小夥伴</div>
         <div class="hero-subtitle">
             歡迎來到你的 <b>六色積木 × AI 新生陪伴小站</b>！<br>
